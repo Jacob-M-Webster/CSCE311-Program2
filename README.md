@@ -4,18 +4,17 @@ SETUP GUIDE:
 
 1. Install Dependencies (RiskV + QEMU)
 
-Ubuntu:
+* Ubuntu:
 
-sudo apt-get update
-sudo apt-get install gcc-riscv64-unknown-elf gdb-multiarch
+    sudo apt-get update
+    sudo apt-get install gcc-riscv64-unknown-elf gdb-multiarch
 
-sudo apt-get install qemu-system-misc
+    sudo apt-get install qemu-system-misc
 
+* Mac (HomeBrew):
 
-Mac (HomeBrew):
-
-brew tap riscv/riscv
-brew install riscv-tools
+    brew tap riscv/riscv
+    brew install riscv-tools
 
 brew install qemu
 
