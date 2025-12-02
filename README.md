@@ -16,7 +16,7 @@ SETUP GUIDE:
     brew tap riscv/riscv
     brew install riscv-tools
 
-brew install qemu
+    brew install qemu
 
 2. Run Demo Program
 
