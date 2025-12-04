@@ -1,0 +1,31 @@
+uart.c
+
+This file provides low-level UART input/output routines for the OS, using the NS16550A UART built into the QEMU RISC-V virtual machine. It exposes basic functions for sending and receiving characters (uart_putc, uart_getc), printing strings with automatic newline formatting (uart_puts), and printing numbers in hexadecimal or decimal (uart_put_hex, uart_put_dec). All operations directly interact with memory-mapped UART registers at address 0x10000000, polling status bits to ensure the transmitter is ready or input data is available. These routines allow the kernel and user processes to output text and debug information without relying on any external libraries.
+
+syscall.c
+
+This file implements a simple system call interface for the RISC-V OS. It defines the kernel-side syscall handler handle_syscall, which inspects the syscall number and arguments from the trap frame and dispatches operations such as process exit, write/read to UART-based stdin/stdout, sleeping, getting the current PID, opening files, and a stubbed exec call that pretends to execute a program from the in-memory filesystem. It also provides user-facing syscall wrapper functions (syscall_exit, syscall_write, syscall_read, syscall_sleep, syscall_getpid, and syscall_exec) that use inline assembly to issue ecall with the appropriate syscall number and arguments. Overall, this module connects user-level code to kernel services like I/O, timing, processes, and the simple filesystem.
+
+string.c
+
+This file implements a small collection of basic string-handling functions similar to those in the C standard library. It includes simple implementations of strlen for measuring string length, strcmp and strncmp for comparing strings, strcpy and strncpy for copying strings into a destination buffer, and strcat for concatenating one string onto another. These routines operate entirely with raw character pointers and null-terminated strings, providing the OS with essential string manipulation tools without relying on libc.
+
+scheduler.c
+
+This code provides a simplified scheduler for the OS. It starts the scheduling system with scheduler_start, which marks the scheduler as active and then directly runs the shell process by calling its entry function—serving as a cooperative, non-preemptive demo rather than a full context-switching scheduler. The schedule function is minimal and only wakes any processes whose sleep timers have expired, without performing true process switching. The yield function simply invokes this lightweight scheduling check. Overall, this module acts as a placeholder scheduler used for demonstration, not a full multitasking implementation.
+
+process.c
+
+This code implements basic process management for the OS. It maintains a fixed table of up to 32 processes, each with its own PID, name, state, priority, stack, and context. The create_process function finds a free slot, assigns a new PID, sets up the process metadata, allocates a stack with kmalloc, and initializes the stack and saved registers so the process can start executing at a given entry function. The module tracks the currently running process, supports looking up processes by PID, and can print a simple process table over UART with process_list. It also provides sleep and wakeup functionality using a memory-mapped timer (process_sleep and process_wake_sleeping), marks processes as exited in process_exit while freeing their stack, and selects the next process to run using a simple priority-based scheduler in get_next_process.
+
+memory.c
+
+This code implements a simple heap-based memory manager for the OS. It initializes a heap region, tracks free and allocated memory using a linked list of mem_block headers, and provides kmalloc for dynamic allocation with a first-fit strategy and optional block splitting, plus kfree for freeing memory and coalescing adjacent free blocks to reduce fragmentation. It also includes basic memset and memcpy implementations for byte-wise memory operations. The memory_stats function reports total, allocated, and free heap space over UART for debugging and monitoring.
+
+kernel.c
+
+This file implements the main kernel logic for a simple RISC-V operating system. It boots the OS by initializing UART, memory management, process management, the filesystem, and then creating three core processes: an init process that sets up demo files, a shell process that runs a simple command-line interface, and an idle process that runs when nothing else is runnable. It also defines the trap handler for interrupts and exceptions, including timer interrupts used for preemptive scheduling and system calls invoked via ecall. Additionally, it configures the machine timer, enables interrupts, and provides basic shell commands (like help, ps, ls, cat, mem, and exit) to demonstrate process, filesystem, and memory functionality over UART.
+
+Filesystem.c:
+
+This code provides a basic in-memory filesystem for an embedded or bare-metal environment. It maintains up to 64 files in a static table and uses dynamic memory allocation to store each file’s data. The module supports creating new files, opening files by name, listing all stored files over UART, and deleting files while freeing their allocated memory. On initialization, it clears the filesystem so it starts empty. Overall, it offers simple file management entirely in RAM without using any physical storage.
