@@ -160,79 +160,213 @@ void init_process(void) {
     }
 }
 
-// Shell process - interactive command line
+// Shell process - INTERACTIVE command line
 void shell_process(void) {
     char cmd_buffer[128];
+    int cmd_pos;
     
     uart_puts("\n");
     uart_puts("=====================================\n");
-    uart_puts("  RISC-V OS Shell v1.0\n");
+    uart_puts("  RISC-V OS Shell v1.0 (Interactive)\n");
     uart_puts("=====================================\n");
-    uart_puts("Commands: help, ps, ls, cat, mem, exit\n");
+    uart_puts("Type 'help' for command list\n");
     uart_puts("\n");
     
-    // Demo: execute some commands automatically
-    char *demo_cmds[] = {"help", "ps", "ls", "cat readme.txt", "mem", "exit"};
-    int num_cmds = 6;
-    
-    for (int demo_step = 0; demo_step < num_cmds; demo_step++) {
+    while(1) {
         uart_puts("$ ");
-        strcpy(cmd_buffer, demo_cmds[demo_step]);
-        uart_puts(cmd_buffer);
-        uart_puts("\n");
+        
+        // Read command from UART
+        cmd_pos = 0;
+        while(1) {
+            char c = uart_getc();
+            
+            // Handle backspace
+            if (c == 127 || c == 8) {
+                if (cmd_pos > 0) {
+                    cmd_pos--;
+                    uart_puts("\b \b");  // Erase character on screen
+                }
+                continue;
+            }
+            
+            // Handle enter
+            if (c == '\r' || c == '\n') {
+                cmd_buffer[cmd_pos] = '\0';
+                uart_puts("\n");
+                break;
+            }
+            
+            // Handle normal characters
+            if (c >= 32 && c < 127 && cmd_pos < 127) {
+                cmd_buffer[cmd_pos++] = c;
+                uart_putc(c);  // Echo character
+            }
+        }
+        
+        // Skip empty commands
+        if (cmd_pos == 0) {
+            continue;
+        }
         
         // Parse and execute command
         if (strcmp(cmd_buffer, "help") == 0) {
-            uart_puts("Available commands:\n");
-            uart_puts("  help  - Show this help\n");
-            uart_puts("  ps    - List processes\n");
-            uart_puts("  ls    - List files\n");
-            uart_puts("  cat   - Display file contents\n");
-            uart_puts("  exec  - Execute a program\n");
-            uart_puts("  mem   - Show memory usage\n");
-            uart_puts("  exit  - Exit shell\n");
+            uart_puts("\nAvailable commands:\n");
+            uart_puts("  help           - Show this help\n");
+            uart_puts("  ps             - List processes\n");
+            uart_puts("  ls             - List files\n");
+            uart_puts("  cat <file>     - Display file contents\n");
+            uart_puts("  echo <text>    - Print text to screen\n");
+            uart_puts("  echo <text> > <file> - Write text to file\n");
+            uart_puts("  create <file>  - Create a test file\n");
+            uart_puts("  exec <file>    - Execute a program\n");
+            uart_puts("  mem            - Show memory usage\n");
+            uart_puts("  clear          - Clear screen\n");
+            uart_puts("  exit           - Exit shell\n\n");
         }
         else if (strcmp(cmd_buffer, "ps") == 0) {
+            uart_puts("\n");
             process_list();
+            uart_puts("\n");
         }
         else if (strcmp(cmd_buffer, "ls") == 0) {
+            uart_puts("\n");
             fs_list_files();
+            uart_puts("\n");
         }
         else if (strncmp(cmd_buffer, "cat ", 4) == 0) {
             char *filename = cmd_buffer + 4;
-            struct file *f = fs_open(filename);
-            if (f) {
-                uart_puts(f->data);
-                if (f->data[f->size - 1] != '\n') {
+            // Trim leading spaces
+            while (*filename == ' ') filename++;
+            
+            if (*filename == '\0') {
+                uart_puts("Usage: cat <filename>\n\n");
+            } else {
+                struct file *f = fs_open(filename);
+                if (f) {
                     uart_puts("\n");
+                    uart_puts(f->data);
+                    if (f->size > 0 && f->data[f->size - 1] != '\n') {
+                        uart_puts("\n");
+                    }
+                    uart_puts("\n");
+                } else {
+                    uart_puts("File not found: ");
+                    uart_puts(filename);
+                    uart_puts("\n\n");
+                }
+            }
+        }
+        else if (strncmp(cmd_buffer, "create ", 7) == 0) {
+            char *filename = cmd_buffer + 7;
+            while (*filename == ' ') filename++;
+            
+            if (*filename == '\0') {
+                uart_puts("Usage: create <filename>\n\n");
+            } else {
+                char content[128];
+                strcpy(content, "This is a test file created at runtime: ");
+                strcat(content, filename);
+                strcat(content, "\n");
+                
+                if (fs_create_file(filename, content, strlen(content)) == 0) {
+                    uart_puts("File created: ");
+                    uart_puts(filename);
+                    uart_puts("\n\n");
+                } else {
+                    uart_puts("Failed to create file\n\n");
+                }
+            }
+        }
+        else if (strncmp(cmd_buffer, "echo ", 5) == 0) {
+            char *text = cmd_buffer + 5;
+            while (*text == ' ') text++;
+            
+            if (*text == '\0') {
+                uart_puts("\n");
+                return;
+            }
+            
+            // Check for redirection: echo text > filename
+            char *redirect = text;
+            char *filename = NULL;
+            
+            // Find the '>' character
+            while (*redirect != '\0') {
+                if (*redirect == '>') {
+                    *redirect = '\0';  // Terminate text here
+                    filename = redirect + 1;
+                    while (*filename == ' ') filename++;  // Skip spaces
+                    break;
+                }
+                redirect++;
+            }
+            
+            if (filename && *filename != '\0') {
+                // Write to file
+                // Remove trailing spaces from text
+                char *end = redirect - 1;
+                while (end > text && (*end == ' ' || *end == '\0')) {
+                    *end = '\0';
+                    end--;
+                }
+                
+                // Add newline to text
+                char file_content[256];
+                strcpy(file_content, text);
+                strcat(file_content, "\n");
+                
+                if (fs_create_file(filename, file_content, strlen(file_content)) == 0) {
+                    uart_puts("Written to ");
+                    uart_puts(filename);
+                    uart_puts("\n\n");
+                } else {
+                    uart_puts("Failed to write to file\n\n");
                 }
             } else {
-                uart_puts("File not found: ");
-                uart_puts(filename);
+                // Just print to screen
+                uart_puts("\n");
+                uart_puts(text);
+                uart_puts("\n\n");
+            }
+        }
+        else if (strncmp(cmd_buffer, "exec ", 5) == 0) {
+            char *filename = cmd_buffer + 5;
+            while (*filename == ' ') filename++;
+            
+            if (*filename == '\0') {
+                uart_puts("Usage: exec <filename>\n\n");
+            } else {
+                syscall_exec(filename);
                 uart_puts("\n");
             }
         }
         else if (strcmp(cmd_buffer, "mem") == 0) {
+            uart_puts("\n");
             memory_stats();
+            uart_puts("\n");
+        }
+        else if (strcmp(cmd_buffer, "clear") == 0) {
+            // ANSI escape code to clear screen
+            uart_puts("\033[2J\033[H");
+            uart_puts("=====================================\n");
+            uart_puts("  RISC-V OS Shell v1.0 (Interactive)\n");
+            uart_puts("=====================================\n\n");
         }
         else if (strcmp(cmd_buffer, "exit") == 0) {
-            uart_puts("Exiting shell...\n");
+            uart_puts("\nExiting shell...\n");
+            uart_puts("Press Ctrl-A then X to exit QEMU\n\n");
             syscall_exit(0);
             break;
         }
-        else if (cmd_buffer[0] != '\0') {
+        else {
             uart_puts("Unknown command: ");
             uart_puts(cmd_buffer);
             uart_puts("\n");
+            uart_puts("Type 'help' for available commands\n\n");
         }
-        
-        uart_puts("\n");
     }
     
-    uart_puts("\n=== Shell Demo Complete ===\n");
-    uart_puts("OS is still running. Press Ctrl-A then X to exit QEMU.\n\n");
-    
-    // Keep running
+    // Keep running after exit
     while(1) {
         syscall_sleep(10000);
     }
