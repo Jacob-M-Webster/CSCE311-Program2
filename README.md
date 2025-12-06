@@ -25,3 +25,5 @@ SETUP GUIDE:
 - make run
 
 3. The risk-v OS should then run type "help" into the shell for a list of available commands.
+
+Video Presentation: https://youtu.be/KX1pXjSBQI8
